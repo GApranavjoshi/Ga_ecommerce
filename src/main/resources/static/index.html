@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce Store</title>
+    <script src="https://js.stripe.com/v3/"></script> <!-- STRIPE JS -->
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2, h3 { color: #333; }
+        input, button { padding: 10px; margin: 5px 0; border-radius: 4px; border: 1px solid #ddd; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .hidden { display: none; }
+        .product-card, .cart-item { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .error { color: red; }
+        .success { color: green; }
+        #cart-total { font-weight: bold; font-size: 1.2em; }
+
+        /* Stripe Element */
+        #payment-form { margin-top: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 5px; background: #f9f9f9; }
+        #card-element { padding: 10px; background: white; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>My E-Commerce Store</h1>
+
+    <!-- LOGIN SECTION -->
+    <div id="login-section">
+        <h3>Login</h3>
+        <input type="email" id="email" placeholder="Enter Email (e.g., bob2@example.com)">
+        <button onclick="login()">Login</button>
+        <p id="login-msg"></p>
+        <p>Don't have an account? <a href="#" onclick="showRegister()">Register</a></p>
+    </div>
+
+    <!-- REGISTER SECTION -->
+    <div id="register-section" class="hidden">
+        <h3>Register</h3>
+        <input type="text" id="reg-name" placeholder="Name">
+        <input type="email" id="reg-email" placeholder="Email">
+        <button onclick="register()">Register</button>
+        <p id="reg-msg"></p>
+        <p>Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
+    </div>
+
+    <!-- MAIN APP SECTION -->
+    <div id="app-section" class="hidden">
+        <p>Welcome, <span id="user-name">User</span>! <button onclick="logout()" style="background: #dc3545;">Logout</button></p>
+
+        <hr>
+
+        <!-- PRODUCTS -->
+        <h3>Products</h3>
+        <div id="product-list">Loading products...</div>
+
+        <hr>
+
+        <!-- CART -->
+        <h3>Your Cart</h3>
+        <div id="cart-list">Cart is empty</div>
+        <p>Total: $<span id="cart-total">0.00</span></p>
+
+        <!-- CHECKOUT BUTTON -->
+        <button id="checkout-btn" onclick="showPaymentForm()" style="background: #28a745; width: 100%;">Proceed to Checkout</button>
+
+        <!-- STRIPE PAYMENT FORM -->
+        <div id="payment-form" class="hidden">
+            <h3>Payment Details</h3>
+            <div id="card-element"><!-- Stripe Element will be inserted here --></div>
+            <button id="pay-btn" onclick="processPayment()" style="background: #6772e5; width: 100%;">Pay Now</button>
+            <p id="payment-msg"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // REPLACE WITH YOUR STRIPE PUBLIC KEY
+    const stripe = Stripe('pk_test_YOUR_PUBLIC_KEY_HERE');
+    const elements = stripe.elements();
+    const cardElement = elements.create('card');
+    cardElement.mount('#card-element');
+
+    let token = localStorage.getItem("token");
+    let userId = localStorage.getItem("userId");
+    let userName = localStorage.getItem("userName");
+    const API_URL = "http://localhost:8080";
+
+    function showLogin() {
+        document.getElementById("login-section").classList.remove("hidden");
+        document.getElementById("register-section").classList.add("hidden");
+    }
+
+    function showRegister() {
+        document.getElementById("login-section").classList.add("hidden");
+        document.getElementById("register-section").classList.remove("hidden");
+    }
+
+    async function register() {
+        const name = document.getElementById("reg-name").value;
+        const email = document.getElementById("reg-email").value;
+
+        try {
+            const res = await fetch(`${API_URL}/auth/register`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, email })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById("reg-msg").innerText = `Registered! Please Login.`;
+                document.getElementById("reg-msg").className = "success";
+            } else {
+                throw new Error("Registration failed");
+            }
+        } catch (e) {
+            document.getElementById("reg-msg").innerText = e.message;
+            document.getElementById("reg-msg").className = "error";
+        }
+    }
+
+    async function login() {
+        const email = document.getElementById("email").value;
+        try {
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email })
+            });
+
+            if (res.ok) {
+                const data = await res.json(); // Now expecting JSON response
+                token = data.token;
+                userId = data.userId;
+                userName = data.name;
+
+                localStorage.setItem("token", token);
+                localStorage.setItem("userId", userId);
+                localStorage.setItem("userName", userName);
+
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("app-section").classList.remove("hidden");
+                document.getElementById("user-name").innerText = userName;
+                loadProducts();
+                loadCart();
+            } else {
+                throw new Error("Login failed");
+            }
+        } catch (e) {
+            document.getElementById("login-msg").innerText = e.message;
+            document.getElementById("login-msg").className = "error";
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("userName");
+        location.reload();
+    }
+
+    async function loadProducts() {
+        const res = await fetch(`${API_URL}/products`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        const products = await res.json();
+
+        const list = document.getElementById("product-list");
+        list.innerHTML = "";
+        products.forEach(p => {
+            list.innerHTML += `
+                <div class="product-card">
+                    <div>
+                        <strong>${p.name}</strong> - $${p.price} (Stock: ${p.quantity})
+                    </div>
+                    <button onclick="addToCart(${p.id})">Add to Cart</button>
+                </div>
+            `;
+        });
+    }
+
+    async function addToCart(productId) {
+        await fetch(`${API_URL}/cart/${userId}/add?productId=${productId}&quantity=1`, {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + token }
+        });
+        loadCart();
+    }
+
+    async function loadCart() {
+        try {
+            const res = await fetch(`${API_URL}/cart/${userId}`, {
+                headers: { "Authorization": "Bearer " + token }
+            });
+            if (!res.ok) throw new Error("Cart empty");
+
+            const cart = await res.json();
+            const list = document.getElementById("cart-list");
+            list.innerHTML = "";
+
+            cart.items.forEach(item => {
+                list.innerHTML += `
+                    <div class="cart-item">
+                        <span>${item.productName} (x${item.quantity})</span>
+                        <span>$${item.price * item.quantity}</span>
+                        <button onclick="removeFromCart(${item.productId})" style="background: #dc3545; padding: 5px;">X</button>
+                    </div>
+                `;
+            });
+            document.getElementById("cart-total").innerText = cart.totalPrice;
+        } catch (e) {
+            document.getElementById("cart-list").innerText = "Cart is empty";
+            document.getElementById("cart-total").innerText = "0.00";
+        }
+    }
+
+    async function removeFromCart(productId) {
+        await fetch(`${API_URL}/cart/${userId}/remove?productId=${productId}`, {
+            method: "DELETE",
+            headers: { "Authorization": "Bearer " + token }
+        });
+        loadCart();
+    }
+
+    function showPaymentForm() {
+        const total = parseFloat(document.getElementById("cart-total").innerText);
+        if (total <= 0) {
+            alert("Cart is empty!");
+            return;
+        }
+        document.getElementById("payment-form").classList.remove("hidden");
+        document.getElementById("checkout-btn").classList.add("hidden");
+    }
+
+    async function processPayment() {
+        const total = parseFloat(document.getElementById("cart-total").innerText);
+        const msg = document.getElementById("payment-msg");
+        msg.innerText = "Processing payment...";
+
+        try {
+            // 1. Create Payment Intent on Backend
+            const intentRes = await fetch(`${API_URL}/payment/create-payment-intent?amount=${total}&currency=usd`, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + token }
+            });
+
+            if (!intentRes.ok) throw new Error("Failed to create payment intent");
+            const { clientSecret } = await intentRes.json();
+
+            // 2. Confirm Payment with Stripe
+            const result = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: { card: cardElement }
+            });
+
+            if (result.error) {
+                msg.innerText = result.error.message;
+                msg.className = "error";
+            } else {
+                if (result.paymentIntent.status === 'succeeded') {
+                    msg.innerText = "Payment Successful! Placing Order...";
+                    msg.className = "success";
+                    placeOrder(); // 3. Place Order after success
+                }
+            }
+        } catch (e) {
+            msg.innerText = "Error: " + e.message;
+            msg.className = "error";
+        }
+    }
+
+    async function placeOrder() {
+        // First get the cart items
+        const res = await fetch(`${API_URL}/cart/${userId}`, {
+            headers: { "Authorization": "Bearer " + token }
+        });
+        const cart = await res.json();
+
+        const orderData = {
+            userId: userId,
+            orderItems: cart.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity
+            }))
+        };
+
+        const orderRes = await fetch(`${API_URL}/orders`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify(orderData)
+        });
+
+        if (orderRes.ok) {
+            document.getElementById("payment-msg").innerText = "Order Placed Successfully!";
+            document.getElementById("payment-msg").className = "success";
+            document.getElementById("cart-list").innerHTML = "Order Placed!";
+            document.getElementById("cart-total").innerText = "0.00";
+            document.getElementById("payment-form").classList.add("hidden");
+            document.getElementById("checkout-btn").classList.remove("hidden");
+            loadProducts(); // Refresh stock
+        } else {
+            const err = await orderRes.json();
+            document.getElementById("payment-msg").innerText = "Order Failed: " + (err.message || "Unknown error");
+            document.getElementById("payment-msg").className = "error";
+        }
+    }
+
+    // Check if already logged in
+    if (token && userId) {
+        document.getElementById("login-section").classList.add("hidden");
+        document.getElementById("app-section").classList.remove("hidden");
+        if (userName) document.getElementById("user-name").innerText = userName;
+        loadProducts();
+        loadCart();
+    }
+</script>
+
+</body>
+</html>
