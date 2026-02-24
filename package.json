@@ -7,6 +7,6 @@
     "test": "echo \"No JS tests\" && exit 0"
   },
   "dependencies": {
-    "lodash": "^4.17.19"
+    "lodash": "^4.17.23"
   }
 }
