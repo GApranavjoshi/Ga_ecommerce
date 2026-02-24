@@ -1,0 +1,10 @@
+{
+  "name": "ecommerce",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Minimal package.json to allow generating package-lock.json for Snyk",
+  "scripts": {
+    "test": "echo \"No JS tests\" && exit 0"
+  },
+  "dependencies": {}
+}
