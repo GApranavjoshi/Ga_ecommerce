@@ -47,40 +47,25 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk auth $SNYK_TOKEN
 
-      - name: Run Snyk test (all projects)
+      - name: Run Snyk test (all projects and code)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           snyk test --all-projects || true
+          snyk code test || true
 
-      - name: Run Snyk test for Maven (pom.xml)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          snyk test --file=pom.xml || true
-
-      - name: Run Snyk code test (scan entire codebase)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          snyk code test --all-projects || true
-
-      - name: Optionally send results to Snyk monitor
+      - name: Send Snyk results to monitor
         if: success()
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           snyk monitor --all-projects || true
-          snyk monitor --file=pom.xml || true
-          snyk code test --all-projects || true
 
-      - name: Generate Snyk JSON report
+      - name: Generate Snyk report
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk test --json --all-projects > snyk-report.json 2>&1 || true
-          snyk test --json --file=pom.xml > snyk-report-maven.json 2>&1 || true
-          snyk code test --json > snyk-code-report.json 2>&1 || true
+          snyk test --json > snyk-report.json 2>&1 || true
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -93,5 +78,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: snyk-security-report
-          path: snyk-report*.json
+          path: snyk-report.json
           retention-days: 30
