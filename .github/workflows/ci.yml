@@ -59,3 +59,23 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           snyk monitor --all-projects || true
+
+      - name: Generate Snyk JSON report
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test --json --all-projects > snyk-report.json 2>&1 || true
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ecommerce-app
+          path: target/*.jar
+          retention-days: 30
+
+      - name: Upload Snyk report artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-security-report
+          path: snyk-report.json
+          retention-days: 30
