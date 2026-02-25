@@ -50,9 +50,10 @@ jobs:
       - name: Run Snyk test (all projects and code)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: .
         run: |
-          snyk test --all-projects || true
-          snyk code test || true
+          snyk test --all-projects --detection-depth=4 || true
+          snyk code test --all-projects || true
 
       - name: Send Snyk results to monitor
         if: success()
