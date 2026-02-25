@@ -50,17 +50,18 @@ jobs:
       - name: Run Snyk test (all projects and code)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        working-directory: .
         run: |
-          snyk test --all-projects --detection-depth=4 || true
-          snyk code test --all-projects || true
+          snyk test --file=pom.xml || true
+          snyk test --file=package.json || true
+          snyk code test || true
 
       - name: Send Snyk results to monitor
         if: success()
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk monitor --all-projects || true
+          snyk monitor --file=pom.xml || true
+          snyk monitor --file=package.json || true
 
       - name: Generate Snyk report
         env:
